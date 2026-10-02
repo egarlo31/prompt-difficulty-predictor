@@ -16,98 +16,102 @@ The architecture combines:
 
 ## 2. General System Architecture
 
-The system is divided into four main components:
+The system is organized into four main components:
 
 - **Frontend**
 - **Backend**
 - **Modeling**
 - **LLM Integration**
 
-The general flow is:
+The frontend provides the user interface, while the backend coordinates application logic and model inference.
 
-Prompt → Frontend → Backend → Difficulty Predictor → Difficulty Class
+The modeling component is responsible for developing the prompt difficulty classifier.
 
-The output classes are:
+The LLM integration component provides access to local or API-based target LLMs without coupling the rest of the system to a specific provider.
+
+![General System Architecture](images/general_system_architecture.svg)
+
+## 3. Modeling Architecture
+
+The modeling component develops and evaluates the prompt difficulty predictor.
+
+The initial modeling flow is:
+
+Prompt → Preprocessing / Tokenization → Pretrained Representation → Custom Neural Network → Difficulty Class
+
+The pretrained component transforms the coding prompt into a semantic representation.
+
+The custom neural network uses that representation to classify the prompt into one of four categories:
 
 - **Easy**
 - **Medium**
 - **Hard**
 - **Cannot Solve**
 
-**[General system architecture diagram]**
+The target LLM is not part of the prediction path itself. It is used during experimentation, labeling, benchmarking, and evaluation.
 
-## 3. Modeling Architecture
-
-The modeling component is responsible for developing and evaluating the difficulty classifier.
-
-The initial architecture is:
-
-Prompt → Preprocessing / Tokenization → Pretrained Representation → Custom Neural Network → Difficulty Class
-
-The pretrained component provides a representation of the coding prompt, while the custom neural network performs the final classification.
-
-Different pretrained representations and neural network configurations may be evaluated experimentally.
-
-**[Modeling architecture diagram]**
+![Modeling Architecture](images/modeling_inference_architecture.svg)
 
 ## 4. Target LLM
 
-The target LLM represents the model whose ability to solve a prompt is being estimated.
+The target LLM is the model whose ability to solve a coding prompt is being estimated.
 
 The initial reference model is **Llama 3 8B**.
 
-Difficulty is therefore relative to the selected target model. A prompt may be easy for one LLM and difficult for another.
+Difficulty is defined relative to the selected target model. A prompt may therefore receive a different difficulty classification when evaluated against another LLM.
 
-The architecture must allow additional LLMs to be evaluated without redesigning the complete system.
+The target LLM is separate from the pretrained representation model used by the difficulty predictor.
+
+The architecture must allow additional target LLMs to be evaluated without redesigning the predictor.
 
 ## 5. LLM Integration
 
-LLM communication will be separated from the main application logic through an abstraction layer.
+The LLM integration component provides a common interface for interacting with target LLMs.
 
-The system should support:
+It should support:
 
-- local LLMs;
+- local models;
 - local inference services;
-- API-based LLMs;
+- API-based models;
 - multiple providers.
 
-Possible execution mechanisms include:
+Provider-specific logic should remain isolated from the main application and modeling components.
 
-- Ollama;
-- Hugging Face;
-- llama.cpp;
-- OpenRouter;
-- other compatible providers.
+The purpose of this layer is to allow target LLMs to be replaced or added without modifying the core system.
 
-**[LLM integration architecture diagram]**
+![LLM Integration](images/llm_integration_architecture.svg)
 
 ## 6. Training and Data Flow
 
 The initial modeling workflow is:
 
-Dataset → Data Audit → EDA → Difficulty Labeling → Preprocessing → Training → Evaluation → Trained Model
+Dataset → Data Audit / EDA → Difficulty Labeling → Data Preparation → Training → Evaluation → Trained Model
 
-Raw datasets should remain unchanged. Any transformation should generate new intermediate or processed data.
+Raw datasets should remain unchanged.
 
-**[Training and data flow diagram]**
+Any transformation should generate intermediate or processed data so that experiments remain reproducible.
+
+![Training and Data Flow](images/training_data_flow.svg)
 
 ## 7. Application Architecture
 
-Once the modeling approach is validated, the trained model will be integrated into the application.
+Once the modeling approach is validated, the trained difficulty predictor will be integrated into the application.
 
 The expected runtime flow is:
 
 User → Frontend → Backend API → Difficulty Predictor → Prediction
 
-When required, the backend may also communicate with the selected LLM through the LLM integration layer.
+The backend coordinates inference and may communicate with the selected target LLM through the LLM integration component when required.
 
-**[Application runtime diagram]**
+The application logic should remain independent from specific LLM providers or infrastructure implementations.
+
+![Application Architecture](images/system_architecture.svg)
 
 ## 8. Deployment
 
 The final system is expected to support containerized execution.
 
-The main deployable components are expected to be:
+The main deployable components are:
 
 - frontend;
 - backend;
@@ -115,18 +119,16 @@ The main deployable components are expected to be:
 
 External LLM APIs will remain outside the local container infrastructure.
 
-**[Container deployment diagram]**
+![Deployment](images/container_deployment_architecture.svg)
 
 ## 9. Architectural Principles
 
 The architecture should maintain:
 
-- separation between experimentation and application code;
+- separation between modeling and application code;
 - independence from a specific LLM provider;
-- replaceable pretrained models;
-- replaceable neural network architectures;
+- replaceable model components;
 - reproducible experiments;
-- support for local and API-based inference;
 - containerized deployment.
 
 ## 10. Current Open Decisions
@@ -138,5 +140,6 @@ The following elements remain under evaluation:
 - neural network architecture;
 - difficulty labeling thresholds;
 - additional target LLMs;
-- final frontend and backend technologies;
+- final frontend framework;
+- final backend framework;
 - final deployment configuration.

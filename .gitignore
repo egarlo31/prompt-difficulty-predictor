@@ -5,3 +5,6 @@ modeling/data/processed/*
 !modeling/data/raw/.gitkeep
 !modeling/data/interim/.gitkeep
 !modeling/data/processed/.gitkeep
+
+.DS_Store
+.idea/
