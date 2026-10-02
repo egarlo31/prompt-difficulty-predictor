@@ -5,3 +5,9 @@ modeling/data/processed/*
 !modeling/data/raw/.gitkeep
 !modeling/data/interim/.gitkeep
 !modeling/data/processed/.gitkeep
+
+modeling/.venv/
+modeling/data/raw/*
+modeling/data/interim/*
+modeling/data/processed/*
+!modeling/data/**/.gitkeep
