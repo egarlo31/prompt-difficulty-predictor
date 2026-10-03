@@ -2,7 +2,7 @@
 
 **Question:** can reliable difficulty labels, relative to Llama 3 8B, be derived from this dataset?
 
-**Short answer so far:** yes, with limits. About 17,500-18,000 train problems look usable after filtering (pending sandbox validation), but contamination cannot be measured with TACO's own dates.
+**Short answer so far:** yes, with limits. After filtering, 18,575 candidate problems remain (17,690 train + 885 test), pending sandbox validation. Contamination cannot be measured with TACO's own dates.
 
 Raw data is never modified. Outputs go to `modeling/data/interim/` or `processed/`.
 
@@ -34,28 +34,48 @@ Status: `[ ]` pending · `[~]` partial · `[x]` done
 | [x] 8 | Images | 630 train and 68 test problems depend on images (`picture_num > 0`). | Exclude. |
 | [x] 9 | Distribution | See section 3. | See section 3. |
 
-## 3. Distribution and usable data (train)
+## 3. Distribution and candidates
 
-| Source | Problems | No solutions | No tests | Images | Approx. usable* |
-|---|---|---|---|---|---|
-| codeforces | 8,193 | 2,338 | 13 | 231 | ~5,840 |
-| codechef | 3,352 | 388 | 0 | 91 | ~2,960 |
-| geeksforgeeks | 2,680 | 0 | 10 | 145 | ~2,670 |
-| codewars | 2,460 | 0 | 349 | 0 | ~2,110 |
-| aizu | 2,151 | 736 | 0 | 0 | ~1,415 |
-| atcoder | 1,440 | 117 | 0 | 0 | ~1,320 |
-| hackerearth | 2,390 | 1,112 | 174 | 0 | ~1,100 |
-| leetcode | 777 | 23 | 195 | 0 | ~560 |
-| kattis | 1,236 | 1,235 | 0 | 0 | excluded |
-| hackerrank | 764 | 1 | 0 | 163 | excluded (license) |
+Exclusions found in train, by source:
 
-\*Problems with solutions and tests, before removing images and before sandbox validation. Total about 17,500-18,000. Test split: ~890-930 after removing images and HackerRank.
+| Source | Problems | No solutions | No tests | Images |
+|---|---|---|---|---|
+| codeforces | 8,193 | 2,338 | 13 | 231 |
+| codechef | 3,352 | 388 | 0 | 91 |
+| geeksforgeeks | 2,680 | 0 | 10 | 145 |
+| codewars | 2,460 | 0 | 349 | 0 |
+| aizu | 2,151 | 736 | 0 | 0 |
+| atcoder | 1,440 | 117 | 0 | 0 |
+| hackerearth | 2,390 | 1,112 | 174 | 0 |
+| leetcode | 777 | 23 | 195 | 0 |
+| kattis | 1,236 | 1,235 | 0 | 0 |
+| hackerrank | 764 | 1 | 0 | 163 |
+
+Candidates after applying the decisions in section 4 (train and test merged; see `results/candidate_summary.json`):
+
+| Source | Candidates |
+|---|---|
+| codeforces | 6,161 |
+| codechef | 3,125 |
+| geeksforgeeks | 2,527 |
+| codewars | 2,165 |
+| aizu | 1,415 |
+| atcoder | 1,323 |
+| hackerearth | 1,277 |
+| leetcode | 582 |
+| **Total** | **18,575** (train 17,690 / test 885) |
+
+Excluded: 7,868 of 26,443 (30%). Reasons overlap: excluded sources 2,046 (Kattis + HackerRank), no solutions 5,950, no tests 741, images 698, parse failures 11.
+
+These are candidates, not validated problems: solutions and tests still have to be checked in the sandbox (check 4).
 
 Other findings:
 - Execution format (train): 21,809 stdin, 2,892 function-call, 741 without tests, 1 unparseable. Two harnesses are needed; stdin covers 86%.
 - The original test split has only 5 sources (Codeforces and CodeChef are 85%). It does not represent the train distribution.
 - 2019 has a spike in dated problems (2,838 train, 262 test). It may be a default value; do not trust it as a real date without checking.
 - Many test problems have repeated inputs (925 of 1,000). Deduplicate inputs before execution to save time.
+- TACO difficulty among candidates: EASY 7,814, UNKNOWN 3,266, MEDIUM 2,404, MEDIUM_HARD 2,348, HARD 1,763, VERY_HARD 980. It reflects human difficulty; use it only as an auxiliary feature or baseline.
+- 3,221 candidates have no URL (Aizu, HackerEarth, part of AtCoder), so duplicates must be checked by question text.
 
 ## 4. Decisions so far
 
@@ -80,7 +100,7 @@ Run a stratified sample (~300 problems, by `source` and `difficulty`) before the
 
 ## 6. Next steps
 
-1. Generate `interim/candidate_ids.csv` with the filters above.
+1. Done: `interim/candidate_ids.csv` generated (18,575 candidates).
 2. Build the sandbox and run check 4 and the pilot.
 3. Define the output comparison policy (check 5).
 
