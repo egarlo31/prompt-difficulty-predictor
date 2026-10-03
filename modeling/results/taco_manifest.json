@@ -1,0 +1,17 @@
+{
+  "repo_id": "BAAI/TACO",
+  "revision": "d593ed0a2becbbc952230bb89be09189bf1056dc",
+  "downloaded_at": "2026-10-03T00:34:29+00:00",
+  "files": {
+    "test/data-00000-of-00001.arrow": 496140888,
+    "train/data-00000-of-00009.arrow": 529629000,
+    "train/data-00001-of-00009.arrow": 612948760,
+    "train/data-00002-of-00009.arrow": 335200528,
+    "train/data-00003-of-00009.arrow": 402713728,
+    "train/data-00004-of-00009.arrow": 417029960,
+    "train/data-00005-of-00009.arrow": 503103112,
+    "train/data-00006-of-00009.arrow": 447486992,
+    "train/data-00007-of-00009.arrow": 525654488,
+    "train/data-00008-of-00009.arrow": 465600648
+  }
+}
