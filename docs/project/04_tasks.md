@@ -6,8 +6,6 @@ Track the main implementation and experimentation tasks required to develop the 
 
 Detailed progress and code changes will be managed through Git branches and Pull Requests.
 
-Task status:
-
 - **Pending**
 - **In Progress**
 - **Blocked**
@@ -17,15 +15,13 @@ Task status:
 
 ## 2. Current Tasks
 
-## 2. Current Tasks
-
 | ID | Task | Workstream | Dependency | Status | Owner |
 |---|---|---|---|---|---|
-| T-01 | Research candidate coding prompt datasets | Data | None | Pending | Unassigned |
+| T-01 | Research GSM8K-compatible reasoning datasets | Data | None | Pending | Unassigned |
 | T-02 | Document dataset sources and licenses | Data | T-01 | Pending | Unassigned |
 | T-03 | Select initial dataset | Data | T-01, T-02 | Pending | Unassigned |
 | T-04 | Define difficulty labeling method | Labeling | T-03 | Pending | Unassigned |
-| T-05 | Prepare Llama 3 8B evaluation setup | Labeling / LLM | None | Pending | Unassigned |
+| T-05 | Prepare Llama 3.1 8B Instruct evaluation setup | Labeling / LLM | None | Pending | Unassigned |
 | T-06 | Define backend API contract | Backend | None | Pending | Unassigned |
 | T-07 | Create backend project skeleton | Backend | T-06 | Pending | Unassigned |
 | T-08 | Implement temporary prediction endpoint | Backend | T-07 | Pending | Unassigned |
@@ -522,3 +518,85 @@ Dependency:
 
 - T-23 — Export Trained Model
 - T-08 — Implement Temporary Prediction Endpoint
+
+## 7. Git Workflow and Branch Strategy
+
+### 7.1 Task–Branch Mapping
+
+| ID   | Task                                    | Workstream             | Branch                                         |
+| ---- | --------------------------------------- | ---------------------- | ---------------------------------------------- |
+| T-01 | Research candidate datasets             | Data                   | `data/T-01-research-candidate-datasets`        |
+| T-02 | Document dataset sources and licenses   | Data                   | `data/T-02-document-dataset-sources`           |
+| T-03 | Select initial dataset                  | Data                   | `data/T-03-select-initial-dataset`             |
+| T-04 | Define difficulty labeling method       | Labeling               | `labeling/T-04-define-difficulty-labeling`     |
+| T-05 | Prepare Llama 3 evaluation setup        | Labeling / LLM         | `experiment/T-05-llama3-evaluation-setup`      |
+| T-06 | Define backend API contract             | Backend                | `backend/T-06-define-api-contract`              |
+| T-07 | Create backend project skeleton         | Backend                | `backend/T-07-create-project-skeleton`          |
+| T-08 | Implement temporary prediction endpoint | Backend                | `backend/T-08-temporary-prediction-endpoint`   |
+| T-09 | Select frontend technology              | Frontend               | `frontend/T-09-select-frontend-technology`      |
+| T-10 | Create frontend project skeleton        | Frontend               | `frontend/T-10-create-project-skeleton`         |
+| T-11 | Implement prompt input interface        | Frontend               | `frontend/T-11-prompt-input-interface`          |
+| T-12 | Connect frontend and temporary backend  | Integration            | `integration/T-12-connect-frontend-backend`    |
+| T-13 | Generate labeled dataset                | Labeling               | `labeling/T-13-generate-labeled-dataset`       |
+| T-14 | Prepare training data                   | Modeling               | `model/T-14-prepare-training-data`              |
+| T-15 | Implement baseline model                | Modeling               | `model/T-15-implement-baseline-model`           |
+| T-16 | Define neural network architecture      | Deep Learning          | `model/T-16-define-neural-architecture`         |
+| T-17 | Implement neural network                | Deep Learning          | `model/T-17-implement-neural-network`           |
+| T-18 | Implement training pipeline             | Deep Learning          | `model/T-18-implement-training-pipeline`        |
+| T-19 | Train initial neural network            | Deep Learning          | `model/T-19-train-initial-neural-network`       |
+| T-20 | Evaluate neural network                 | Deep Learning          | `model/T-20-evaluate-neural-network`            |
+| T-21 | Run model experiments                   | Deep Learning          | `experiment/T-21-run-model-experiments`        |
+| T-22 | Select final predictor                  | Modeling               | `model/T-22-select-final-predictor`             |
+| T-23 | Export trained model                    | Modeling / Integration | `model/T-23-export-trained-model`               |
+| T-24 | Integrate final predictor into backend  | Backend / Integration  | `integration/T-24-integrate-predictor-backend` |
+
+### 7.2 Branch Naming Convention
+
+Each project task has a predefined task branch.
+
+The branch naming convention is:
+
+`<workstream>/<task-id>-<short-description>`
+
+Examples:
+
+- `data/T-01-research-candidate-datasets`
+- `experiment/T-05-llama3-evaluation-setup`
+- `model/T-17-implement-neural-network`
+
+### 7.3 Development Workflow
+
+Task branches are created from `master` when the corresponding task moves to
+`In Progress`.
+
+Contributors should not work directly on protected task branches. Individual
+work should be performed in a temporary branch derived from the corresponding
+task branch.
+
+Example:
+
+`data/T-01-ruben-dataset-research`
+→ Pull Request
+→ `data/T-01-research-candidate-datasets`
+
+When a task is completed and reviewed, the task branch is merged into `master`
+through a Pull Request.
+
+Temporary contributor branches should be deleted after merging.
+
+### 7.4 Branch Roles
+
+- `master`: stable integration branch.
+- Task branches: represent one project task.
+- Temporary contributor branches: contain individual work before review.
+
+### 7.5 Branch Rules
+
+1. Do not work directly on `master`.
+2. Do not work directly on protected task branches.
+3. Create temporary contributor branches from the corresponding task branch.
+4. Submit changes to the task branch through a Pull Request.
+5. Require review before merging.
+6. Merge completed task branches into `master` through a Pull Request.
+7. Delete temporary contributor branches after merging.
+8. Keep branch names linked to the corresponding task ID.
