@@ -20,7 +20,7 @@ Detailed progress and code changes will be managed through Git branches and Pull
 | T-01 | Research GSM8K-compatible reasoning datasets | Data | None | Pending | Unassigned |
 | T-02 | Document dataset sources and licenses | Data | T-01 | Pending | Unassigned |
 | T-03 | Select initial dataset | Data | T-01, T-02 | Pending | Unassigned |
-| T-04 | Define difficulty labeling method | Labeling | T-03 | Pending | Unassigned |
+| T-04 | Define difficulty labeling method | Labeling | T-26 | Pending | Unassigned |
 | T-05 | Prepare Llama 3.1 8B Instruct evaluation setup | Labeling / LLM | None | Pending | Unassigned |
 | T-06 | Define backend API contract | Backend | None | Pending | Unassigned |
 | T-07 | Create backend project skeleton | Backend | T-06 | Pending | Unassigned |
@@ -41,6 +41,8 @@ Detailed progress and code changes will be managed through Git branches and Pull
 | T-22 | Select final predictor | Modeling | T-15, T-20, T-21 | Pending | Unassigned |
 | T-23 | Export trained model | Modeling / Integration | T-22 | Pending | Unassigned |
 | T-24 | Integrate final predictor into backend | Backend / Integration | T-08, T-23 | Pending | Unassigned |
+| T-25 | Perform data audit | Data | T-03 | Pending | Unassigned |
+| T-26 | Perform exploratory data analysis | Data | T-25 | Pending | Unassigned |
 
 ---
 
@@ -519,6 +521,47 @@ Dependency:
 - T-23 — Export Trained Model
 - T-08 — Implement Temporary Prediction Endpoint
 
+### T-25 — Perform Data Audit
+
+Objective:
+
+Evaluate the quality and structural integrity of the selected dataset.
+
+Main tasks:
+
+- inspect dataset structure and schema;
+- detect missing values;
+- detect duplicates;
+- identify invalid or inconsistent records;
+- inspect data types;
+- verify relevant fields;
+- document data quality findings.
+
+Dependency:
+
+- T-03 — Select Initial Dataset
+
+---
+
+### T-26 — Perform Exploratory Data Analysis
+
+Objective:
+
+Understand the main characteristics of the selected dataset before labeling and modeling.
+
+Main tasks:
+
+- analyze prompt length distribution;
+- analyze task or category distribution;
+- inspect relevant variables;
+- identify imbalance or unusual patterns;
+- analyze characteristics potentially related to difficulty;
+- document relevant findings.
+
+Dependency:
+
+- T-25 — Perform Data Audit
+
 ## 7. Git Workflow and Branch Strategy
 
 ### 7.1 Task–Branch Mapping
@@ -530,25 +573,27 @@ Dependency:
 | T-03 | Select initial dataset                  | Data                   | `data/T-03-select-initial-dataset`             |
 | T-04 | Define difficulty labeling method       | Labeling               | `labeling/T-04-define-difficulty-labeling`     |
 | T-05 | Prepare Llama 3 evaluation setup        | Labeling / LLM         | `experiment/T-05-llama3-evaluation-setup`      |
-| T-06 | Define backend API contract             | Backend                | `backend/T-06-define-api-contract`              |
-| T-07 | Create backend project skeleton         | Backend                | `backend/T-07-create-project-skeleton`          |
+| T-06 | Define backend API contract             | Backend                | `backend/T-06-define-api-contract`             |
+| T-07 | Create backend project skeleton         | Backend                | `backend/T-07-create-project-skeleton`         |
 | T-08 | Implement temporary prediction endpoint | Backend                | `backend/T-08-temporary-prediction-endpoint`   |
-| T-09 | Select frontend technology              | Frontend               | `frontend/T-09-select-frontend-technology`      |
-| T-10 | Create frontend project skeleton        | Frontend               | `frontend/T-10-create-project-skeleton`         |
-| T-11 | Implement prompt input interface        | Frontend               | `frontend/T-11-prompt-input-interface`          |
+| T-09 | Select frontend technology              | Frontend               | `frontend/T-09-select-frontend-technology`     |
+| T-10 | Create frontend project skeleton        | Frontend               | `frontend/T-10-create-project-skeleton`        |
+| T-11 | Implement prompt input interface        | Frontend               | `frontend/T-11-prompt-input-interface`         |
 | T-12 | Connect frontend and temporary backend  | Integration            | `integration/T-12-connect-frontend-backend`    |
 | T-13 | Generate labeled dataset                | Labeling               | `labeling/T-13-generate-labeled-dataset`       |
-| T-14 | Prepare training data                   | Modeling               | `model/T-14-prepare-training-data`              |
-| T-15 | Implement baseline model                | Modeling               | `model/T-15-implement-baseline-model`           |
-| T-16 | Define neural network architecture      | Deep Learning          | `model/T-16-define-neural-architecture`         |
-| T-17 | Implement neural network                | Deep Learning          | `model/T-17-implement-neural-network`           |
-| T-18 | Implement training pipeline             | Deep Learning          | `model/T-18-implement-training-pipeline`        |
-| T-19 | Train initial neural network            | Deep Learning          | `model/T-19-train-initial-neural-network`       |
-| T-20 | Evaluate neural network                 | Deep Learning          | `model/T-20-evaluate-neural-network`            |
+| T-14 | Prepare training data                   | Modeling               | `model/T-14-prepare-training-data`             |
+| T-15 | Implement baseline model                | Modeling               | `model/T-15-implement-baseline-model`          |
+| T-16 | Define neural network architecture      | Deep Learning          | `model/T-16-define-neural-architecture`        |
+| T-17 | Implement neural network                | Deep Learning          | `model/T-17-implement-neural-network`          |
+| T-18 | Implement training pipeline             | Deep Learning          | `model/T-18-implement-training-pipeline`       |
+| T-19 | Train initial neural network            | Deep Learning          | `model/T-19-train-initial-neural-network`      |
+| T-20 | Evaluate neural network                 | Deep Learning          | `model/T-20-evaluate-neural-network`           |
 | T-21 | Run model experiments                   | Deep Learning          | `experiment/T-21-run-model-experiments`        |
 | T-22 | Select final predictor                  | Modeling               | `model/T-22-select-final-predictor`             |
 | T-23 | Export trained model                    | Modeling / Integration | `model/T-23-export-trained-model`               |
 | T-24 | Integrate final predictor into backend  | Backend / Integration  | `integration/T-24-integrate-predictor-backend` |
+| T-25 | Perform data audit                      | Data                   | `data/T-25-perform-data-audit`                  |
+| T-26 | Perform exploratory data analysis       | Data                   | `data/T-26-perform-eda`                         |
 
 ### 7.2 Branch Naming Convention
 
