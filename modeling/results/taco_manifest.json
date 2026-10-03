@@ -1,7 +1,7 @@
 {
   "repo_id": "BAAI/TACO",
   "revision": "d593ed0a2becbbc952230bb89be09189bf1056dc",
-  "downloaded_at": "2026-10-03T00:34:29+00:00",
+  "downloaded_at": "2026-10-03T00:36:32+00:00",
   "files": {
     "test/data-00000-of-00001.arrow": 496140888,
     "train/data-00000-of-00009.arrow": 529629000,
