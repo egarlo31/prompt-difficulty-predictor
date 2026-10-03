@@ -1,0 +1,115 @@
+{
+  "train": {
+    "counts": {
+      "rows": 25443,
+      "empty_date": 19222,
+      "no_solutions": 5950,
+      "total_tests": 1313308,
+      "total_solutions": 1468722,
+      "tests_with_duplicate_inputs": 4288,
+      "empty_url": 5224,
+      "no_tests": 741,
+      "with_images": 630,
+      "parse_fail_input_output": 1
+    },
+    "by_source": {
+      "codeforces": 8193,
+      "aizu": 2151,
+      "geeksforgeeks": 2680,
+      "codewars": 2460,
+      "kattis": 1236,
+      "codechef": 3352,
+      "hackerearth": 2390,
+      "atcoder": 1440,
+      "leetcode": 777,
+      "hackerrank": 764
+    },
+    "by_difficulty": {
+      "HARD": 3162,
+      "VERY_HARD": 2374,
+      "UNKNOWN_DIFFICULTY": 5014,
+      "EASY": 8904,
+      "MEDIUM_HARD": 2745,
+      "MEDIUM": 3244
+    },
+    "by_year": {
+      "2008": 12,
+      "2009": 10,
+      "2010": 18,
+      "2011": 32,
+      "2012": 79,
+      "2013": 79,
+      "2014": 118,
+      "2015": 124,
+      "2016": 80,
+      "2017": 99,
+      "2018": 178,
+      "2019": 2838,
+      "2020": 622,
+      "2021": 724,
+      "2022": 1065,
+      "2023": 143,
+      "unknown": 19222
+    },
+    "execution_type": {
+      "stdin": 21809,
+      "function": 2892,
+      "no_tests": 741,
+      "unparseable": 1
+    },
+    "duplicate_urls_within_split": 0,
+    "expected_rows": 25443,
+    "row_count_matches": true
+  },
+  "test": {
+    "counts": {
+      "rows": 1000,
+      "total_solutions": 69936,
+      "total_tests": 201728,
+      "tests_with_duplicate_inputs": 925,
+      "empty_date": 332,
+      "parse_fail_solutions": 10,
+      "with_images": 68
+    },
+    "by_source": {
+      "codeforces": 576,
+      "codechef": 278,
+      "codewars": 55,
+      "hackerearth": 45,
+      "hackerrank": 46
+    },
+    "by_difficulty": {
+      "MEDIUM": 200,
+      "VERY_HARD": 200,
+      "HARD": 200,
+      "MEDIUM_HARD": 200,
+      "EASY": 200
+    },
+    "by_year": {
+      "2008": 3,
+      "2010": 3,
+      "2011": 7,
+      "2012": 5,
+      "2013": 12,
+      "2014": 15,
+      "2015": 19,
+      "2016": 13,
+      "2017": 21,
+      "2018": 23,
+      "2019": 262,
+      "2020": 88,
+      "2021": 103,
+      "2022": 85,
+      "2023": 9,
+      "unknown": 332
+    },
+    "execution_type": {
+      "stdin": 945,
+      "function": 55
+    },
+    "duplicate_urls_within_split": 0,
+    "expected_rows": 1000,
+    "row_count_matches": true
+  },
+  "train_test_url_overlap": 0
+}
