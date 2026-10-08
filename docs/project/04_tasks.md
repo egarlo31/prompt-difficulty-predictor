@@ -15,20 +15,20 @@ Detailed progress and code changes will be managed through Git branches and Pull
 
 ## 2. Current Tasks
 
-| ID | Task | Workstream | Dependency | Status | Owner |
-|---|---|---|---|---|---|
-| T-01 | Research GSM8K-compatible reasoning datasets | Data | None | Pending | Unassigned |
-| T-02 | Document dataset sources and licenses | Data | T-01 | Pending | Unassigned |
-| T-03 | Select initial dataset | Data | T-01, T-02 | Pending | Unassigned |
+| ID | Task | Workstream | Dependency | Status | Owner      |
+|---|---|---|---|---|------------|
+| T-01 | Research GSM8K-compatible reasoning datasets | Data | None | Pending | Ruben      |
+| T-02 | Document dataset sources and licenses | Data | T-01 | Pending | Ruben      |
+| T-03 | Select initial dataset | Data | T-01, T-02 | Pending | Ruben      |
 | T-04 | Define difficulty labeling method | Labeling | T-26 | Pending | Unassigned |
 | T-05 | Prepare Llama 3.1 8B Instruct evaluation setup | Labeling / LLM | None | Pending | Unassigned |
 | T-06 | Define backend API contract | Backend | None | Pending | Unassigned |
 | T-07 | Create backend project skeleton | Backend | T-06 | Pending | Unassigned |
 | T-08 | Implement temporary prediction endpoint | Backend | T-07 | Pending | Unassigned |
-| T-09 | Select frontend technology | Frontend | None | Pending | Unassigned |
-| T-10 | Create frontend project skeleton | Frontend | T-09 | Pending | Unassigned |
-| T-11 | Implement prompt input interface | Frontend | T-10 | Pending | Unassigned |
-| T-12 | Connect frontend and temporary backend | Integration | T-08, T-11 | Pending | Unassigned |
+| T-09 | Select frontend technology | Frontend | None | Pending | Jose Maria |
+| T-10 | Create frontend project skeleton | Frontend | T-09 | Pending | Jose Maria |
+| T-11 | Implement prompt input interface | Frontend | T-10 | Pending | Jose Maria |
+| T-12 | Connect frontend and temporary backend | Integration | T-08, T-11 | Pending | Jose Maria |
 | T-13 | Generate labeled dataset | Labeling | T-04, T-05 | Pending | Unassigned |
 | T-14 | Prepare training data | Modeling | T-13 | Pending | Unassigned |
 | T-15 | Implement baseline model | Modeling | T-14 | Pending | Unassigned |
