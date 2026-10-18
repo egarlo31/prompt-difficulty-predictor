@@ -1,0 +1,17 @@
+provider:
+  type: ollama
+  base_url: http://localhost:11434
+  timeout_seconds: 300
+
+model:
+  name: llama3.1:8b
+
+inference:
+  temperature: 0.0
+  top_p: 1.0
+  seed: 42
+  num_ctx: 4096
+  num_predict: 512
+
+generation:
+  stream: false

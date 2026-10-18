@@ -6,5 +6,12 @@ modeling/data/processed/*
 !modeling/data/interim/.gitkeep
 !modeling/data/processed/.gitkeep
 
+modeling/experiments/runs/*
+!modeling/experiments/runs/.gitkeep
+
 .DS_Store
 .idea/
+__pycache__/
+*.py[cod]
+
+.venv/
