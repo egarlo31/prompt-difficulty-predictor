@@ -1,0 +1,36 @@
+{
+  "total_problems": 26443,
+  "excluded_total": 7868,
+  "excluded_by_reason_(overlapping)": {
+    "excluded_source": 2046,
+    "no_solutions": 5950,
+    "no_tests": 741,
+    "has_images": 698,
+    "parse_fail": 11,
+    "empty_question": 0
+  },
+  "candidates_total": 18575,
+  "candidates_by_split": {
+    "train": 17690,
+    "test": 885
+  },
+  "candidates_by_source": {
+    "codeforces": 6161,
+    "codechef": 3125,
+    "geeksforgeeks": 2527,
+    "codewars": 2165,
+    "aizu": 1415,
+    "atcoder": 1323,
+    "hackerearth": 1277,
+    "leetcode": 582
+  },
+  "candidates_by_taco_difficulty": {
+    "EASY": 7814,
+    "UNKNOWN_DIFFICULTY": 3266,
+    "MEDIUM": 2404,
+    "MEDIUM_HARD": 2348,
+    "HARD": 1763,
+    "VERY_HARD": 980
+  },
+  "candidates_without_url": 3221
+}

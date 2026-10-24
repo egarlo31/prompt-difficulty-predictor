@@ -1,17 +1,25 @@
+# Python environments
+.venv/
+modeling/.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# IDE and OS
+.idea/
+.DS_Store
+
+# Generated datasets
 modeling/data/raw/*
 modeling/data/interim/*
 modeling/data/processed/*
 
+# Preserve directory structure
 !modeling/data/raw/.gitkeep
 !modeling/data/interim/.gitkeep
 !modeling/data/processed/.gitkeep
 
+# Experimental runs
 modeling/experiments/runs/*
 !modeling/experiments/runs/.gitkeep
-
-.DS_Store
-.idea/
-__pycache__/
-*.py[cod]
-
-.venv/
