@@ -1,4 +1,4 @@
-from ollama import Client
+from backend.local_llm.ollama_adapter import OllamaAdapter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -134,8 +134,8 @@ class HardwareMonitor:
 
 class LLMGeneration:
 
-    def __init__(self, client: Client, gpu, model: str, options: dict):
-        self.client = client
+    def __init__(self, client, gpu, model: str, options: dict):
+        self.adapter = OllamaAdapter(model, client=client, options=options)
         self.model = model
         self.options = options.copy()
         self.hardware_monitor = HardwareMonitor(gpu)
@@ -189,13 +189,7 @@ class LLMGeneration:
         monitor.start()
 
         try:
-            result = self.client.generate(
-                model=self.model,
-                prompt=prompt,
-                stream=False,
-                options=self.options,
-                keep_alive="10m",
-            )
+            result = self.adapter.generate_result(prompt)
 
         except Exception as exc:
             error = str(exc)
@@ -306,10 +300,7 @@ class LLMGeneration:
 
 def main() -> None:
 
-    client = Client(
-        host="http://localhost:11434",
-        timeout=160,
-    )
+    adapter = OllamaAdapter(MODEL, options=OPTIONS)
 
     # Dataset
     prompts = [
@@ -325,7 +316,7 @@ def main() -> None:
 
         # Initialize LLM Generation
         generator = LLMGeneration(
-            client=client,
+            client=adapter.client,
             gpu=gpu,
             model=MODEL,
             options=OPTIONS,
@@ -337,13 +328,7 @@ def main() -> None:
 
         print("Loading LLM into memory...")
 
-        client.generate(
-            model=MODEL,
-            prompt="Warm-up.",
-            stream=False,
-            options={**OPTIONS, "num_predict": 1},
-            keep_alive="10m",
-        )
+        generator.adapter.warm_up()
 
         print("Model ready.")
 

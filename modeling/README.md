@@ -52,22 +52,48 @@ al importarlo por ausencia de `_lzma`).
 .venv/bin/python -m unittest discover -s tests -p 'test_extract_prompts.py' -v
 ```
 
-## Revisión del flujo anterior
+## Notebooks ejecutables
 
-- `export_prompts.py` contiene `TacoDatasetBuilder`, que carga identificadores,
-  pero no exporta prompts. Se conserva por compatibilidad.
-- `01_dataset_construction.ipynb` anuncia LiveCodeBench, pero carga candidatos
-  TACO; además intenta configurar imports después de importar el módulo.
-- Los notebooks dentro de `modeling/notebooks/data/` usan `../data`, que desde
-  esa carpeta apunta a `modeling/notebooks/data`, no a `modeling/data`.
-- El notebook TACO depende de `taco_candidates.parquet`, ausente en esta copia.
-  Los JSONL de LiveCodeBench tampoco están disponibles localmente.
-- `check_integrity.py` apunta a `data/rawx/TACO`, mientras la descarga usa
-  `data/raw/TACO`. El nuevo exportador usa la ruta de los datos existentes.
-- Los scripts de candidatos aplican filtros por soluciones/tests ajenos al
-  objetivo de extraer solo los enunciados.
+Los tres notebooks resuelven la raíz del repositorio desde su propia carpeta.
+Ya no necesitan `candidate_ids.csv`, `taco_candidates.parquet` ni `datasets`.
 
-Para la extracción usar el comando anterior. Se conservan los notebooks y
-el código de auditoría existentes, incluidos los cambios locales previos.
-LiveCodeBench no forma parte de esta salida porque no hay datos locales.
-El backend y la generación de respuestas son flujos independientes.
+- `01_dataset_construction.ipynb`: exporta y valida los 25,816 prompts únicos.
+- `data/prompts_por_nivel.ipynb`: exporta solo prompts a `processed/por_nivel/`.
+  Deduplica dentro de cada dificultad; un mismo texto con etiquetas distintas
+  puede aparecer en más de un archivo. Conserva dificultades desconocidas.
+- `data/prompts_livecodebench.ipynb`: procesa `raw/livecodebench/test*.jsonl`
+  cuando existen. Sin esos datos imprime `SIN DATOS` y termina sin exportar;
+  ejecutar esa rama no valida la extracción real de LiveCodeBench.
+
+Para volver a ejecutarlos y guardar sus salidas, usando el mismo Python:
+
+```bash
+.venv/bin/python -m pip install -r modeling/requirements-notebooks.txt
+.venv/bin/python -m modeling.src.run_notebooks
+```
+
+## Adaptador de Ollama
+
+`backend.local_llm.ollama_adapter.OllamaAdapter` concentra las llamadas a
+Ollama del backend y del evaluador. `generate(prompt)` conserva la respuesta
+como texto; `generate_result(prompt)` devuelve la respuesta completa con
+métricas. `warm_up()` usa la misma ruta con un token de salida. Las opciones
+por llamada se combinan con los valores predeterminados sin modificarlos.
+Host, timeout, keep_alive y cliente son configurables. Las pruebas inyectan
+un cliente simulado y no requieren un servidor ni descargan modelos.
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+# Evaluación real: requiere Ollama, el modelo instalado y GPU NVIDIA/NVML.
+.venv/bin/python -m modeling.src.evaluation.generate_responses
+```
+
+La ejecución real de Ollama es independiente de extraer prompts y de los
+notebooks. Las pruebas del adaptador no demuestran conectividad al servidor.
+
+## Flujo anterior conservado
+
+`export_prompts.py` y los scripts de auditoría/candidatos se conservan por
+compatibilidad. El `check_integrity.py` local apunta a `data/rawx/TACO`, aunque
+los datos descargados están en `data/raw/TACO`; el nuevo flujo no lo utiliza.
+No se modificaron esos cambios locales previos ni el manifiesto de descarga.
