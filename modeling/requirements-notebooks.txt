@@ -1,0 +1,5 @@
+-r requirements-prompts.txt
+nbclient
+nbformat
+ipykernel
+ollama

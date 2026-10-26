@@ -1,378 +1,203 @@
-from ollama import Client
-from datetime import datetime, timezone
-from pathlib import Path
 
-import json
+"""Generate LLM responses and collect experimental statistics."""
+
 import threading
 import time
-import psutil
-import pynvml
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from types import MappingProxyType
+from typing import Any
 
-MODEL = "llama3.1:8b"
-SAMPLE_INTERVAL = 0.1
+from inference.ollama_gateway import OllamaGateway
+from modeling.src.evaluation.hardware_monitor import HardwareMonitor
 
-OPTIONS = {
-    "temperature": 0.0,
-    "top_p": 1.0,
-    "seed": 42,
-    "num_ctx": 4096,
-    "num_predict": 512,
-}
 
-class HardwareMonitor:
+@dataclass(frozen=True)
+class GenerationConfig:
+    """Define reproducible LLM inference settings."""
 
-    def __init__(self, gpu, sample_interval: float = 0.1):
-        if sample_interval <= 0:
-            raise ValueError("sample_interval must be positive")
+    model: str = "llama3.1:8b"
+    host: str = "http://localhost:11434"
+    options: Mapping[str, Any] = field(default_factory=lambda: {
+        "temperature": 0.0,
+        "seed": 42,
+        "num_ctx": 4096,
+        "num_predict": 512,
+    })
+    system: str | None = None
+    think: bool | None = False
+    keep_alive: str = "10m"
+    timeout: int = 300
 
-        self.gpu = gpu
-        self.sample_interval = sample_interval
+    def __post_init__(self) -> None:
+        if not self.model.strip() or self.timeout <= 0:
+            raise ValueError("A model name and positive timeout are required")
 
-    # ==========================================
-    # HARDWARE METRICS
-    # ==========================================
+        object.__setattr__(self, "options", MappingProxyType(dict(self.options)))
 
-    def get_hardware_metrics(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the inference configuration."""
+        config = vars(self).copy()
+        config["options"] = dict(self.options)
+        config["schema_version"] = 1
+        return config
 
-        ram = psutil.virtual_memory()
-        vram = pynvml.nvmlDeviceGetMemoryInfo(self.gpu)
-        utilization = pynvml.nvmlDeviceGetUtilizationRates(self.gpu)
 
-        try:
-            power = pynvml.nvmlDeviceGetPowerUsage(self.gpu) / 1000
-        except pynvml.NVMLError:
-            power = None
+class ResponseStatistics:
+    """Collect provider timings, token counts, and throughput."""
 
-        return {
-            "timestamp": time.perf_counter(),
-            "ram_gib": ram.used / (1024 ** 3),
-            "vram_gib": vram.used / (1024 ** 3),
-            "gpu_util_percent": utilization.gpu,
-            "gpu_power_w": power,
-        }
-
-    # ==========================================
-    # RESOURCE MONITORING
-    # ==========================================
-
-    def monitor_resources(
-        self,
-        stop_event: threading.Event,
-        samples: list[dict],
-    ) -> None:
-
-        while not stop_event.is_set():
-
-            try:
-                samples.append(self.get_hardware_metrics())
-
-            except Exception as error:
-                print(f"Monitoring error: {error}")
-                return
-
-            stop_event.wait(self.sample_interval)
-
-    # ==========================================
-    # RESOURCE ANALYSIS
-    # ==========================================
+    DURATION_FIELDS = (
+        "total_duration",
+        "load_duration",
+        "prompt_eval_duration",
+        "eval_duration",
+    )
 
     @staticmethod
-    def calculate_resource_metrics(samples: list[dict]) -> dict:
+    def _throughput(tokens: int | None, seconds: float | None) -> float | None:
+        """Calculate token throughput when timing data is available."""
+        if tokens is None or seconds is None or seconds <= 0:
+            return None
 
-        if not samples:
-            return {}
+        return tokens / seconds
 
-        def average(key):
-            values = [
-                sample[key]
-                for sample in samples
-                if sample[key] is not None
-            ]
-            return sum(values) / len(values) if values else None
+    @classmethod
+    def collect(cls, response) -> dict[str, Any]:
+        """Preserve Ollama response data and calculate derived metrics."""
+        data = response.model_dump(mode="json")
 
-        energy_j = None
+        for name in cls.DURATION_FIELDS:
+            value = data.get(name)
+            data[f"{name}_seconds"] = value / 1e9 if value is not None else None
 
-        if (
-            len(samples) >= 2
-            and all(sample["gpu_power_w"] is not None for sample in samples)
-        ):
-            energy_j = 0.0
-
-            for previous, current in zip(samples, samples[1:]):
-
-                delta_time = (
-                    current["timestamp"] - previous["timestamp"]
-                )
-
-                average_power = (
-                    previous["gpu_power_w"] + current["gpu_power_w"]
-                ) / 2
-
-                energy_j += average_power * delta_time
-
-        return {
-            "sample_count": len(samples),
-
-            "ram_avg_gib": average("ram_gib"),
-            "ram_peak_gib": max(
-                sample["ram_gib"] for sample in samples
-            ),
-
-            "vram_avg_gib": average("vram_gib"),
-            "vram_peak_gib": max(
-                sample["vram_gib"] for sample in samples
-            ),
-
-            "gpu_util_avg_percent": average("gpu_util_percent"),
-            "gpu_util_peak_percent": max(
-                sample["gpu_util_percent"] for sample in samples
-            ),
-
-            "gpu_power_avg_w": average("gpu_power_w"),
-            "gpu_energy_estimated_j": energy_j,
-        }
-
-class LLMGeneration:
-
-    def __init__(self, client: Client, gpu, model: str, options: dict):
-        self.client = client
-        self.model = model
-        self.options = options.copy()
-        self.hardware_monitor = HardwareMonitor(gpu)
-
-    # ==========================================
-    # LLM GENERATION
-    # ==========================================
-
-    def generate_response(self, prompt: str) -> dict:
-
-        result, elapsed, samples, error = self._run_inference(prompt)
-
-        record = {
-            "prompt": prompt,
-            "attempt": 1,
-            "model": self.model,
-            "inference_config": self.options.copy(),
-            "wall_time_seconds": elapsed,
-            "resources": self.hardware_monitor.calculate_resource_metrics(samples),
-        }
-
-        if result is None:
-            record["status"] = "generation_error"
-            record["error"] = error
-
-        else:
-            record.update(self._format_response(result))
-            record["status"] = "generated"
-
-        return record
-
-    # ==========================================
-    # INFERENCE EXECUTION
-    # ==========================================
-
-    def _run_inference(self, prompt: str):
-
-        samples = [self.hardware_monitor.get_hardware_metrics()]
-        stop_event = threading.Event()
-
-        monitor = threading.Thread(
-            target=self.hardware_monitor.monitor_resources,
-            args=(stop_event, samples),
-            daemon=True,
-        )
-
-        result = None
-        error = None
-
-        start_time = time.perf_counter()
-        monitor.start()
-
-        try:
-            result = self.client.generate(
-                model=self.model,
-                prompt=prompt,
-                stream=False,
-                options=self.options,
-                keep_alive="10m",
-            )
-
-        except Exception as exc:
-            error = str(exc)
-
-        finally:
-            elapsed = time.perf_counter() - start_time
-            stop_event.set()
-            monitor.join()
-
-            samples.append(
-                self.hardware_monitor.get_hardware_metrics()
-            )
-
-        return result, elapsed, samples, error
-
-    # ==========================================
-    # RESPONSE FORMATTING
-    # ==========================================
-
-    def _format_response(self, response) -> dict:
-
-        data = response.model_dump(
-            mode="json",
-            exclude={
-                "context",
-                "thinking",
-                "logprobs",
-                "image",
-                "completed",
-                "total",
-            },
-        )
-
-        data = self.scale_ollama_durations(data)
-
-        total = data.get("total_duration_seconds")
-        load = data.get("load_duration_seconds")
+        total = data["total_duration_seconds"]
+        load = data["load_duration_seconds"]
 
         data["processing_duration_seconds"] = (
             max(0.0, total - load)
-            if total is not None and load is not None
-            else None
+            if total is not None and load is not None else None
+        )
+
+        data["prompt_tokens_per_second"] = cls._throughput(
+            data.get("prompt_eval_count"),
+            data["prompt_eval_duration_seconds"],
+        )
+
+        data["output_tokens_per_second"] = cls._throughput(
+            data.get("eval_count"),
+            data["eval_duration_seconds"],
         )
 
         return data
 
-    # ==========================================
-    # TIME CONVERSION
-    # ==========================================
 
-    @staticmethod
-    def scale_ollama_durations(data: dict) -> dict:
+class ResponseGenerator:
+    """Coordinate LLM inference and experimental statistics."""
 
-        duration_fields = (
-            "total_duration",
-            "load_duration",
-            "prompt_eval_duration",
-            "eval_duration",
+    def __init__(self, config: GenerationConfig, *, gateway=None, hardware_monitor: HardwareMonitor | None = None):
+        self.config = config
+        self.gateway = gateway if gateway is not None else OllamaGateway(config.host, timeout=config.timeout)
+        self.hardware_monitor = hardware_monitor
+        self.statistics = ResponseStatistics()
+
+    def _generate_response(self, prompt: str):
+        """Submit a prompt to the configured LLM."""
+        return self.gateway.generate(
+            prompt,
+            model=self.config.model,
+            options=dict(self.config.options),
+            keep_alive=self.config.keep_alive,
+            system=self.config.system,
+            think=self.config.think,
         )
 
-        for field in duration_fields:
-            value = data.pop(field, None)
+    def _sample(self, samples: list[dict], errors: list[str]) -> bool:
+        """Collect one hardware sample and record failures."""
+        if self.hardware_monitor is None:
+            return False
 
-            data[f"{field}_seconds"] = (
-                value / 1_000_000_000
-                if value is not None
-                else None
-            )
+        try:
+            samples.append(self.hardware_monitor.get_hardware_metrics())
+            return True
+        except Exception as error:
+            errors.append(str(error))
+            return False
 
-        return data
+    def _monitor_loop(self, stop_event: threading.Event, samples: list[dict], errors: list[str]) -> None:
+        """Periodically collect hardware metrics."""
+        monitor = self.hardware_monitor
 
-    # ==========================================
-    # SAVE RESULTS
-    # ==========================================
+        if monitor is None:
+            return
 
-    def save_results(self, results: list[dict]) -> Path:
+        while not stop_event.wait(monitor.sample_interval):
+            if not self._sample(samples, errors):
+                return
 
-        run_id = datetime.now(timezone.utc).strftime(
-            "%Y%m%d_%H%M%S_%f"
+    def _start_monitor(self, samples: list[dict], errors: list[str]) -> tuple[threading.Event, threading.Thread | None]:
+        """Start hardware monitoring when available."""
+        stop_event = threading.Event()
+        monitor = self.hardware_monitor
+
+        if monitor is None or monitor.gpu is None or not self._sample(samples, errors):
+            return stop_event, None
+
+        thread = threading.Thread(
+            target=self._monitor_loop,
+            args=(stop_event, samples, errors),
+            daemon=True,
         )
+        thread.start()
 
-        modeling_root = Path(__file__).resolve().parents[2]
+        return stop_event, thread
 
-        output_dir = (
-            modeling_root
-            / "experiments"
-            / "runs"
-            / run_id
-        )
+    def _stop_monitor(self, stop_event: threading.Event, thread: threading.Thread | None, samples: list[dict], errors: list[str]) -> None:
+        """Stop monitoring and capture the final sample."""
+        stop_event.set()
 
-        output_dir.mkdir(parents=True, exist_ok=False)
+        if thread is not None:
+            thread.join()
+            self._sample(samples, errors)
 
-        output_path = output_dir / "responses.json"
+    def generate(self, prompt: str, attempt: int = 1) -> dict[str, Any]:
+        """Generate one response and collect experiment metrics."""
+        if attempt < 1:
+            raise ValueError("attempt must be positive")
 
-        with output_path.open("w", encoding="utf-8") as file:
-            json.dump(
-                results,
-                file,
-                indent=2,
-                ensure_ascii=False,
-            )
+        record: dict[str, Any] = {
+            "prompt": prompt,
+            "attempt": attempt,
+            "model": self.config.model,
+            "inference_config": dict(self.config.options),
+            "generation_config": self.config.to_dict(),
+            "prompt_length_chars": len(prompt),
+            "started_at_utc": datetime.now(timezone.utc).isoformat(),
+        }
 
-        return output_path
-    
-# ==========================================
-# MAIN
-# ==========================================
+        samples: list[dict] = []
+        errors: list[str] = []
 
-def main() -> None:
+        stop_event, thread = self._start_monitor(samples, errors)
+        start = time.perf_counter()
 
-    client = Client(
-        host="http://localhost:11434",
-        timeout=160,
-    )
+        try:
+            response = self._generate_response(prompt)
+            record.update(self.statistics.collect(response))
+            record["status"] = "generated"
 
-    # Dataset
-    prompts = [
-        "hello",
-        "how are you?",
-        "tell me a joke",
-    ]
+        except Exception as error:
+            record.update(status="generation_error", error=str(error))
 
-    pynvml.nvmlInit()
+        finally:
+            record["wall_time_seconds"] = time.perf_counter() - start
+            self._stop_monitor(stop_event, thread, samples, errors)
 
-    try:
-        gpu = pynvml.nvmlDeviceGetHandleByIndex(0)
+        monitor = self.hardware_monitor
+        record["resources"] = monitor.calculate_resource_metrics(samples) if monitor is not None and samples else {}
+        record["hardware_samples"] = samples
 
-        # Initialize LLM Generation
-        generator = LLMGeneration(
-            client=client,
-            gpu=gpu,
-            model=MODEL,
-            options=OPTIONS,
-        )
+        if errors:
+            record["monitoring_errors"] = errors
 
-        # ==================================
-        # MODEL WARM-UP
-        # ==================================
-
-        print("Loading LLM into memory...")
-
-        client.generate(
-            model=MODEL,
-            prompt="Warm-up.",
-            stream=False,
-            options={**OPTIONS, "num_predict": 1},
-            keep_alive="10m",
-        )
-
-        print("Model ready.")
-
-        # ==================================
-        # EXPERIMENT EXECUTION
-        # ==================================
-
-        print("Starting experiments...")
-
-        results = []
-
-        for prompt in prompts:
-            result = generator.generate_response(prompt)
-            results.append(result)
-
-            print(f"Prompt: {result['status']}")
-
-        # ==================================
-        # SAVE RESULTS
-        # ==================================
-
-        output_path = generator.save_results(results)
-
-    finally:
-        pynvml.nvmlShutdown()
-
-    print(f"\nProcessed prompts: {len(results)}")
-    print(f"Results saved: {output_path}")
-
-
-if __name__ == "__main__":
-    main()
+        return record
