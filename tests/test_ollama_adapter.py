@@ -1,50 +1,76 @@
 import unittest
-from types import SimpleNamespace
 from unittest.mock import Mock
+
 from backend.local_llm.ollama_adapter import OllamaAdapter
+from modeling.src.evaluation.generate_responses import EvaluationRunner
 
 
 class OllamaAdapterTests(unittest.TestCase):
     def setUp(self):
         self.client = Mock()
-        self.client.generate.return_value = SimpleNamespace(response="answer")
-        self.options = {"temperature": 0, "num_predict": 512}
-        self.adapter = OllamaAdapter("test", client=self.client, options=self.options)
+        self.client.generate.return_value.response = "answer"
+        self.adapter = OllamaAdapter("test", client=self.client, options={"seed": 42})
 
-    def test_text_and_full_response(self):
-        self.assertEqual(self.adapter.generate("question"), "answer")
-        self.assertIs(self.adapter.generate_result("question"), self.client.generate.return_value)
-        self.client.generate.assert_called_with(model="test", prompt="question", stream=False,
-            options=self.options, keep_alive="10m")
+    def test_single_generate_returns_text_and_metrics_together(self):
+        response = self.adapter.generate("question")
+        self.assertIs(response, self.client.generate.return_value)
+        self.assertEqual(response.response, "answer")
+        self.client.generate.assert_called_once_with(
+            model="test", prompt="question", stream=False,
+            options={"seed": 42}, keep_alive="10m",
+        )
 
-    def test_warmup_and_overrides_do_not_mutate_defaults(self):
-        self.adapter.warm_up()
-        self.assertEqual(self.client.generate.call_args.kwargs["options"]["num_predict"], 1)
-        self.adapter.generate("question", options={"temperature": 0.5})
-        self.assertEqual(self.client.generate.call_args.kwargs["options"]["temperature"], 0.5)
-        self.assertEqual(self.adapter.options, self.options)
+    def test_overrides_and_warmup_preserve_defaults(self):
+        self.adapter.generate("Warm-up.", options={"num_predict": 1, "seed": 0})
+        self.assertEqual(self.client.generate.call_args.kwargs["options"], {"seed": 0, "num_predict": 1})
+        self.assertEqual(self.adapter.options, {"seed": 42})
 
-    def test_failure_propagates(self):
+    def test_inference_errors_propagate(self):
         self.client.generate.side_effect = RuntimeError("offline")
         with self.assertRaisesRegex(RuntimeError, "offline"):
             self.adapter.generate("question")
 
 
-class EvaluationIntegrationTests(unittest.TestCase):
-    def test_evaluator_preserves_response_metrics_through_adapter(self):
-        from unittest.mock import patch
-        from modeling.src.evaluation.generate_responses import LLMGeneration
-        client = Mock()
-        client.generate.return_value.model_dump.return_value = {
+class EvaluationTests(unittest.TestCase):
+    def setUp(self):
+        self.client = Mock()
+        self.client.generate.return_value.model_dump.return_value = {
             "response": "answer", "total_duration": 3_000_000_000,
             "load_duration": 1_000_000_000,
         }
-        with patch("modeling.src.evaluation.generate_responses.HardwareMonitor") as monitor:
-            monitor.return_value.calculate_resource_metrics.return_value = {}
-            generator = LLMGeneration(client, None, "test", {"seed": 42})
-            record = generator.generate_response("question")
+        self.adapter = OllamaAdapter("test", client=self.client, options={"seed": 42})
+
+    def test_shared_adapter_retains_metrics_without_gpu(self):
+        runner = EvaluationRunner(self.adapter)
+        self.adapter.options["seed"] = 10
+        record = runner.evaluate("question")
+        self.assertIs(runner.adapter, self.adapter)
         self.assertEqual(record["status"], "generated")
         self.assertEqual(record["response"], "answer")
         self.assertEqual(record["processing_duration_seconds"], 2.0)
-        client.generate.assert_called_once_with(model="test", prompt="question", stream=False,
-                                               options={"seed": 42}, keep_alive="10m")
+        self.assertIsNone(record["eval_duration_seconds"])
+        self.assertEqual(record["resources"], {})
+        self.assertEqual(record["inference_config"], {"seed": 10})
+        self.client.generate.assert_called_once_with(
+            model="test", prompt="question", stream=False,
+            options={"seed": 10}, keep_alive="10m",
+        )
+
+    def test_error_record_stops_monitor_and_keeps_samples(self):
+        import threading
+        monitor = Mock()
+        stopped = threading.Event()
+        def monitor_resources(stop, samples):
+            stop.wait(2)
+            if stop.is_set():
+                stopped.set()
+        monitor.monitor_resources.side_effect = monitor_resources
+        monitor.get_hardware_metrics.return_value = {"ram_gib": 1}
+        monitor.calculate_resource_metrics.return_value = {"sample_count": 2}
+        self.client.generate.side_effect = RuntimeError("offline")
+        record = EvaluationRunner(self.adapter, monitor).evaluate("question")
+        self.assertEqual(record["status"], "generation_error")
+        self.assertEqual(record["error"], "offline")
+        self.assertEqual(record["resources"], {"sample_count": 2})
+        self.assertEqual(monitor.get_hardware_metrics.call_count, 2)
+        self.assertTrue(stopped.is_set())

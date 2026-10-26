@@ -1,16 +1,10 @@
-from backend.local_llm.ollama_adapter import OllamaAdapter
-from datetime import datetime, timezone
-from pathlib import Path
-
-import json
+"""Evaluate prompts using a shared Ollama adapter and optional resource monitor."""
 import threading
 import time
-import psutil
-import pynvml
+
+from backend.local_llm.ollama_adapter import OllamaAdapter
 
 MODEL = "llama3.1:8b"
-SAMPLE_INTERVAL = 0.1
-
 OPTIONS = {
     "temperature": 0.0,
     "top_p": 1.0,
@@ -19,344 +13,87 @@ OPTIONS = {
     "num_predict": 512,
 }
 
-class HardwareMonitor:
 
-    def __init__(self, gpu, sample_interval: float = 0.1):
-        if sample_interval <= 0:
-            raise ValueError("sample_interval must be positive")
+class EvaluationRunner:
+    """Add timing, resource samples and persistence around a shared adapter."""
 
-        self.gpu = gpu
-        self.sample_interval = sample_interval
+    def __init__(self, adapter: OllamaAdapter, hardware_monitor=None):
+        self.adapter = adapter
+        self.hardware_monitor = hardware_monitor
 
-    # ==========================================
-    # HARDWARE METRICS
-    # ==========================================
-
-    def get_hardware_metrics(self) -> dict:
-
-        ram = psutil.virtual_memory()
-        vram = pynvml.nvmlDeviceGetMemoryInfo(self.gpu)
-        utilization = pynvml.nvmlDeviceGetUtilizationRates(self.gpu)
-
-        try:
-            power = pynvml.nvmlDeviceGetPowerUsage(self.gpu) / 1000
-        except pynvml.NVMLError:
-            power = None
-
-        return {
-            "timestamp": time.perf_counter(),
-            "ram_gib": ram.used / (1024 ** 3),
-            "vram_gib": vram.used / (1024 ** 3),
-            "gpu_util_percent": utilization.gpu,
-            "gpu_power_w": power,
-        }
-
-    # ==========================================
-    # RESOURCE MONITORING
-    # ==========================================
-
-    def monitor_resources(
-        self,
-        stop_event: threading.Event,
-        samples: list[dict],
-    ) -> None:
-
-        while not stop_event.is_set():
-
-            try:
-                samples.append(self.get_hardware_metrics())
-
-            except Exception as error:
-                print(f"Monitoring error: {error}")
-                return
-
-            stop_event.wait(self.sample_interval)
-
-    # ==========================================
-    # RESOURCE ANALYSIS
-    # ==========================================
-
-    @staticmethod
-    def calculate_resource_metrics(samples: list[dict]) -> dict:
-
-        if not samples:
-            return {}
-
-        def average(key):
-            values = [
-                sample[key]
-                for sample in samples
-                if sample[key] is not None
-            ]
-            return sum(values) / len(values) if values else None
-
-        energy_j = None
-
-        if (
-            len(samples) >= 2
-            and all(sample["gpu_power_w"] is not None for sample in samples)
-        ):
-            energy_j = 0.0
-
-            for previous, current in zip(samples, samples[1:]):
-
-                delta_time = (
-                    current["timestamp"] - previous["timestamp"]
-                )
-
-                average_power = (
-                    previous["gpu_power_w"] + current["gpu_power_w"]
-                ) / 2
-
-                energy_j += average_power * delta_time
-
-        return {
-            "sample_count": len(samples),
-
-            "ram_avg_gib": average("ram_gib"),
-            "ram_peak_gib": max(
-                sample["ram_gib"] for sample in samples
-            ),
-
-            "vram_avg_gib": average("vram_gib"),
-            "vram_peak_gib": max(
-                sample["vram_gib"] for sample in samples
-            ),
-
-            "gpu_util_avg_percent": average("gpu_util_percent"),
-            "gpu_util_peak_percent": max(
-                sample["gpu_util_percent"] for sample in samples
-            ),
-
-            "gpu_power_avg_w": average("gpu_power_w"),
-            "gpu_energy_estimated_j": energy_j,
-        }
-
-class LLMGeneration:
-
-    def __init__(self, client, gpu, model: str, options: dict):
-        self.adapter = OllamaAdapter(model, client=client, options=options)
-        self.model = model
-        self.options = options.copy()
-        self.hardware_monitor = HardwareMonitor(gpu)
-
-    # ==========================================
-    # LLM GENERATION
-    # ==========================================
-
-    def generate_response(self, prompt: str) -> dict:
-
-        result, elapsed, samples, error = self._run_inference(prompt)
-
+    def evaluate(self, prompt: str) -> dict:
         record = {
             "prompt": prompt,
             "attempt": 1,
-            "model": self.model,
-            "inference_config": self.options.copy(),
-            "wall_time_seconds": elapsed,
-            "resources": self.hardware_monitor.calculate_resource_metrics(samples),
+            "model": self.adapter.model,
+            "inference_config": self.adapter.options.copy(),
         }
+        samples = []
+        stop_event = threading.Event()
+        monitor = None
+        if self.hardware_monitor is not None:
+            samples.append(self.hardware_monitor.get_hardware_metrics())
+            monitor = threading.Thread(
+                target=self.hardware_monitor.monitor_resources,
+                args=(stop_event, samples), daemon=True,
+            )
+            monitor.start()
 
-        if result is None:
-            record["status"] = "generation_error"
-            record["error"] = error
-
+        start = time.perf_counter()
+        try:
+            response = self.adapter.generate(prompt)
+        except Exception as error:
+            record.update(status="generation_error", error=str(error))
         else:
-            record.update(self._format_response(result))
-            record["status"] = "generated"
+            record.update(self._format_response(response), status="generated")
+        finally:
+            record["wall_time_seconds"] = time.perf_counter() - start
+            stop_event.set()
+            if monitor is not None:
+                monitor.join()
+                samples.append(self.hardware_monitor.get_hardware_metrics())
 
+        record["resources"] = (
+            self.hardware_monitor.calculate_resource_metrics(samples)
+            if self.hardware_monitor is not None else {}
+        )
         return record
 
-    # ==========================================
-    # INFERENCE EXECUTION
-    # ==========================================
-
-    def _run_inference(self, prompt: str):
-
-        samples = [self.hardware_monitor.get_hardware_metrics()]
-        stop_event = threading.Event()
-
-        monitor = threading.Thread(
-            target=self.hardware_monitor.monitor_resources,
-            args=(stop_event, samples),
-            daemon=True,
-        )
-
-        result = None
-        error = None
-
-        start_time = time.perf_counter()
-        monitor.start()
-
-        try:
-            result = self.adapter.generate_result(prompt)
-
-        except Exception as exc:
-            error = str(exc)
-
-        finally:
-            elapsed = time.perf_counter() - start_time
-            stop_event.set()
-            monitor.join()
-
-            samples.append(
-                self.hardware_monitor.get_hardware_metrics()
-            )
-
-        return result, elapsed, samples, error
-
-    # ==========================================
-    # RESPONSE FORMATTING
-    # ==========================================
-
-    def _format_response(self, response) -> dict:
-
+    @staticmethod
+    def _format_response(response) -> dict:
         data = response.model_dump(
             mode="json",
-            exclude={
-                "context",
-                "thinking",
-                "logprobs",
-                "image",
-                "completed",
-                "total",
-            },
+            exclude={"context", "thinking", "logprobs", "image", "completed", "total"},
         )
-
-        data = self.scale_ollama_durations(data)
-
-        total = data.get("total_duration_seconds")
-        load = data.get("load_duration_seconds")
-
-        data["processing_duration_seconds"] = (
-            max(0.0, total - load)
-            if total is not None and load is not None
-            else None
-        )
-
-        return data
-
-    # ==========================================
-    # TIME CONVERSION
-    # ==========================================
-
-    @staticmethod
-    def scale_ollama_durations(data: dict) -> dict:
-
-        duration_fields = (
-            "total_duration",
-            "load_duration",
-            "prompt_eval_duration",
-            "eval_duration",
-        )
-
-        for field in duration_fields:
+        for field in ("total_duration", "load_duration", "prompt_eval_duration", "eval_duration"):
             value = data.pop(field, None)
-
-            data[f"{field}_seconds"] = (
-                value / 1_000_000_000
-                if value is not None
-                else None
-            )
-
+            data[f"{field}_seconds"] = value / 1_000_000_000 if value is not None else None
+        total, load = data["total_duration_seconds"], data["load_duration_seconds"]
+        data["processing_duration_seconds"] = (
+            max(0.0, total - load) if total is not None and load is not None else None
+        )
         return data
-
-    # ==========================================
-    # SAVE RESULTS
-    # ==========================================
-
-    def save_results(self, results: list[dict]) -> Path:
-
-        run_id = datetime.now(timezone.utc).strftime(
-            "%Y%m%d_%H%M%S_%f"
-        )
-
-        modeling_root = Path(__file__).resolve().parents[2]
-
-        output_dir = (
-            modeling_root
-            / "experiments"
-            / "runs"
-            / run_id
-        )
-
-        output_dir.mkdir(parents=True, exist_ok=False)
-
-        output_path = output_dir / "responses.json"
-
-        with output_path.open("w", encoding="utf-8") as file:
-            json.dump(
-                results,
-                file,
-                indent=2,
-                ensure_ascii=False,
-            )
-
-        return output_path
-    
-# ==========================================
-# MAIN
-# ==========================================
 
 def main() -> None:
+    import argparse
+    from pathlib import Path
+    from modeling.src.data.prompt_io import load_prompts
+    from modeling.src.evaluation.batch import CODING_SYSTEM, generate_batch
 
-    adapter = OllamaAdapter(MODEL, options=OPTIONS)
-
-    # Dataset
-    prompts = [
-        "hello",
-        "how are you?",
-        "tell me a joke",
-    ]
-
-    pynvml.nvmlInit()
-
-    try:
-        gpu = pynvml.nvmlDeviceGetHandleByIndex(0)
-
-        # Initialize LLM Generation
-        generator = LLMGeneration(
-            client=adapter.client,
-            gpu=gpu,
-            model=MODEL,
-            options=OPTIONS,
-        )
-
-        # ==================================
-        # MODEL WARM-UP
-        # ==================================
-
-        print("Loading LLM into memory...")
-
-        generator.adapter.warm_up()
-
-        print("Model ready.")
-
-        # ==================================
-        # EXPERIMENT EXECUTION
-        # ==================================
-
-        print("Starting experiments...")
-
-        results = []
-
-        for prompt in prompts:
-            result = generator.generate_response(prompt)
-            results.append(result)
-
-            print(f"Prompt: {result['status']}")
-
-        # ==================================
-        # SAVE RESULTS
-        # ==================================
-
-        output_path = generator.save_results(results)
-
-    finally:
-        pynvml.nvmlShutdown()
-
-    print(f"\nProcessed prompts: {len(results)}")
-    print(f"Results saved: {output_path}")
+    parser = argparse.ArgumentParser(description="Generate responses from prompt JSONL")
+    parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument("--run-dir", type=Path, required=True)
+    parser.add_argument("--model", default="qwen3:8b")
+    parser.add_argument("--host", default="http://localhost:11434")
+    parser.add_argument("--limit", type=int, default=3)
+    args = parser.parse_args()
+    if args.limit < 1:
+        parser.error("--limit must be positive")
+    adapter = OllamaAdapter(args.model, host=args.host, options=OPTIONS,
+                            system=CODING_SYSTEM, think=False)
+    result = generate_batch(load_prompts(args.input, limit=args.limit),
+                            EvaluationRunner(adapter), args.run_dir)
+    print(result)
 
 
 if __name__ == "__main__":
