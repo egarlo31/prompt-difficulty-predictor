@@ -199,7 +199,35 @@ function renderResult(data) {
 }
 
 /**
- * Ejecuta la predicción (soporta llamada API o fallback local)
+ * Consulta el endpoint de predicción del backend FastAPI
+ */
+async function callPredictionAPI(prompt) {
+  const candidates = [
+    "/api/v1/predict",
+    "http://localhost:8000/api/v1/predict",
+    "http://127.0.0.1:8000/api/v1/predict",
+  ];
+
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt, model_target: "llama3-8b" }),
+      });
+      if (response && response.ok) {
+        return await response.json();
+      }
+    } catch {
+      // Intenta el siguiente candidato si este falló por red o CORS
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * Ejecuta la predicción conectando con el backend FastAPI
  */
 async function predictDifficulty() {
   const input = document.getElementById("inputText");
@@ -217,15 +245,9 @@ async function predictDifficulty() {
   predictBtn.innerText = "Analizando...";
 
   try {
-    // Si existe el endpoint backend /api/v1/predict, se intenta consumir
-    const response = await fetch("/api/v1/predict", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: prompt, model_target: "llama3-8b" }),
-    }).catch(() => null);
+    const data = await callPredictionAPI(prompt);
 
-    if (response && response.ok) {
-      const data = await response.json();
+    if (data) {
       const badgeMap = {
         Easy: "easy",
         Medium: "medium",
@@ -236,13 +258,13 @@ async function predictDifficulty() {
         difficulty: data.difficulty,
         badgeClass: badgeMap[data.difficulty] || "medium",
         successRate: data.estimated_success_rate ?? 50.0,
-        wordCount: prompt.split(/\s+/).length,
-        lineCount: prompt.split("\n").length,
-        description: data.details?.description || "Predicción generada por el backend.",
+        wordCount: data.details?.word_count ?? prompt.split(/\s+/).length,
+        lineCount: data.details?.line_count ?? prompt.split("\n").length,
+        description: data.details?.description || "Predicción generada por el backend API.",
         targetModel: data.model_target || "Llama 3 8B",
       });
     } else {
-      // Fallback local mientras se conectan los endpoints en el siguiente commit
+      // Fallback local en caso de que el backend no esté accesible
       const localData = estimatePromptDifficultyLocally(prompt);
       renderResult(localData);
     }
