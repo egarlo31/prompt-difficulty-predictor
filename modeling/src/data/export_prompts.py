@@ -11,7 +11,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from modeling.src.data.taco_dataset import TacoArrowDataset
+from modeling.src.data.taco_dataset import TacoDataset
 
 
 MODELING_DIR = Path(__file__).resolve().parents[2]
@@ -21,7 +21,7 @@ class DatasetManager:
     """Manage TACO dataset candidates and project paths."""
 
     def __init__(self, data_dir: Path | str | None = None) -> None:
-        """Initialize the dataset directory, defaulting to modeling/data."""
+        """Initialize the dataset directory."""
         self.data_dir = Path(data_dir) if data_dir is not None else MODELING_DIR / "data"
 
     def load_candidates(self) -> pd.DataFrame:
@@ -31,24 +31,17 @@ class DatasetManager:
 
     @staticmethod
     def _validate_candidates(df: pd.DataFrame) -> pd.DataFrame:
-        """Validate candidate indices, dataset splits, and uniqueness.
-
-        Returns:
-            A validated DataFrame with integer indices.
-
-        Raises:
-            ValueError: If candidate identifiers are invalid or duplicated.
-        """
-        missing = {"split", "idx"} - set(df.columns)
-        if missing:
-            raise ValueError(f"Missing columns: {missing}")
+        """Validate candidate indices and uniqueness."""
+        if "idx" not in df.columns:
+            raise ValueError("Missing column: idx")
 
         df = df.copy()
 
-        if df[["split", "idx"]].isna().any().any():
+        if df["idx"].isna().any():
             raise ValueError("Missing candidate identifiers")
 
         numeric = pd.to_numeric(df["idx"], errors="coerce")
+
         if numeric.isna().any() or (numeric % 1 != 0).any():
             raise ValueError("Candidate indices must be integers")
 
@@ -60,21 +53,14 @@ class DatasetManager:
         if (df["idx"] < 0).any():
             raise ValueError("Invalid candidate indices: negative values found")
 
-        if not df["split"].isin({"train", "test"}).all():
-            raise ValueError("Invalid dataset split")
-
-        if df.duplicated(subset=["split", "idx"]).any():
+        if df.duplicated(subset=["idx"]).any():
             raise ValueError("Duplicate candidates")
 
         return df
 
     @staticmethod
     def configure_imports() -> None:
-        """Locate the project root and add it to sys.path.
-
-        Raises:
-            FileNotFoundError: If the modeling/src directory is not found.
-        """
+        """Locate the project root and add it to sys.path."""
         current = Path.cwd()
 
         for parent in (current, *current.parents):
@@ -92,7 +78,7 @@ class PromptOperation(DatasetManager):
 
     @staticmethod
     def _validate_prompts(questions: Iterable[str | None], min_chars: int, counts: Counter):
-        """Yield valid prompts alongside their whitespace-normalized text."""
+        """Yield valid prompts and their normalized text."""
         for question in questions:
             counts["read"] += 1
 
@@ -113,7 +99,7 @@ class PromptOperation(DatasetManager):
 
     @staticmethod
     def _deduplicate_prompts(prompts: Iterable[tuple[str, str]], counts: Counter):
-        """Yield unique prompts using SHA-256 hashes of normalized text."""
+        """Yield unique prompts using SHA-256 hashes."""
         seen: set[bytes] = set()
 
         for question, normalized in prompts:
@@ -128,7 +114,7 @@ class PromptOperation(DatasetManager):
 
     @staticmethod
     def _write_jsonl(prompts: Iterable[str], destination: Path) -> int:
-        """Atomically write prompts to JSONL and return the exported count."""
+        """Atomically write prompts to JSONL."""
         destination.parent.mkdir(parents=True, exist_ok=True)
 
         temporary = None
@@ -163,17 +149,7 @@ class PromptOperation(DatasetManager):
         min_chars: int = 1,
         deduplicate: bool = True,
     ) -> dict[str, int]:
-        """Validate, optionally deduplicate, and export prompts to JSONL.
-
-        Args:
-            questions: Input prompt collection.
-            destination: Output JSONL file path.
-            min_chars: Minimum prompt length after stripping whitespace.
-            deduplicate: Whether to remove repeated normalized prompts.
-
-        Returns:
-            Counts for read, exported, empty_or_short, and duplicates.
-        """
+        """Validate, deduplicate, and export prompts to JSONL."""
         if min_chars < 1:
             raise ValueError("min_chars must be positive")
 
@@ -194,25 +170,12 @@ class PromptOperation(DatasetManager):
         self,
         raw_dir: Path | str | None = None,
         destination: Path | str | None = None,
-        split: str = "all",
         min_chars: int = 1,
         deduplicate: bool = True,
     ) -> dict[str, int]:
-        """Extract prompts from TACO Arrow shards and export them to JSONL.
-
-        Args:
-            raw_dir: Source directory, defaulting to data/raw/TACO.
-            destination: Output file, defaulting to data/processed/prompts.jsonl.
-            split: Dataset partition ('train', 'test', or 'all').
-            min_chars: Minimum valid prompt length.
-            deduplicate: Whether to exclude duplicate prompts.
-
-        Returns:
-            Prompt validation and export statistics.
-        """
+        """Extract TACO prompts and export them to JSONL."""
         raw_path = Path(raw_dir).resolve() if raw_dir else (self.data_dir / "raw" / "TACO").resolve()
         dest_path = Path(destination) if destination else self.data_dir / "processed" / "prompts.jsonl"
-        splits = ["train", "test"] if split == "all" else [split]
 
-        questions = TacoArrowDataset(raw_path).questions(splits)
+        questions = TacoDataset(raw_path).questions()
         return self.export_prompts(questions, dest_path, min_chars, deduplicate)
