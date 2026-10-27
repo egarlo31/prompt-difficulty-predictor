@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="css/reset.css" />
+    <link rel="stylesheet" href="css/style.css" />
+    <title>Prompt Difficulty Predictor</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@48,400,0,0"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      crossorigin="anonymous"
+    />
+  </head>
+  <body>
+    <header>
+      <div class="header-brand">
+        <span class="material-symbols-outlined header-icon">terminal</span>
+        <div class="header-text">
+          <h1>Prompt Difficulty Predictor</h1>
+          <span class="header-badge">Target: Llama 3 8B</span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="input">
+        <textarea
+          name="inputText"
+          id="inputText"
+          autocomplete="off"
+          autofocus
+          placeholder="Ingrese el prompt de programación aquí..."
+          cols="70"
+          rows="10"
+        ></textarea>
+        <div>
+          <p>Admite descripciones algorítmicas, especificaciones y retos de programación</p>
+          <div class="inputButtons">
+            <button class="inputButtonsEncrypt" id="predictBtn" onclick="predictDifficulty()">
+              Predecir Dificultad
+            </button>
+            <button
+              class="inputButtonsDecrypt outlinedButton"
+              id="exampleBtn"
+              onclick="loadExamplePrompt()"
+            >
+              Cargar Ejemplo
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="output none" id="output">
+        <div class="outputNoneinfo" id="noneinfo">
+          <div class="illustration-container">
+            <svg
+              class="placeholder-illustration"
+              width="64"
+              height="64"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <div class="outputNoneText">
+            <p>Ningún prompt evaluado</p>
+            <p>Ingresa el texto que desees analizar para estimar su nivel de dificultad.</p>
+          </div>
+        </div>
+
+        <div class="outputResult" id="result">
+          <div class="outputResultText" id="resultText"></div>
+
+          <div class="outputResultActions">
+            <button
+              id="copyButton"
+              class="outputResultCopy outlinedButton"
+              onclick="copyToClipboard()"
+            >
+              Copiar Resultado
+            </button>
+            <button
+              id="clearButton"
+              class="outputResultClear"
+              onclick="clearAll()"
+            >
+              Limpiar
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>&copy; 2026 Prompt Difficulty Predictor • Llama 3 8B Evaluation</p>
+      <a
+        href="https://github.com/egarlo31/prompt-difficulty-predictor"
+        target="_blank"
+        id="github"
+        aria-label="GitHub Repository"
+      >
+        <i class="fa-brands fa-github"></i>
+      </a>
+    </footer>
+
+    <script src="js/main.js"></script>
+  </body>
+</html>
